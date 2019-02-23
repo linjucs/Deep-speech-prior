@@ -243,33 +243,27 @@ class AEGenerator(object):
 
 if __name__=='__main__':
     wav_path = 'test.wav'
-    epoch = 20
-    signal = read_audio(wav_path)
-    noise = make_noise(signal)
+    epoch = 60
+    audio = np.squeeze(read_audio(wav_path)) # need to rescale, [-1, 1] or [0, 1] ???
+    signal = audio / np.max(np.abs(audio), axis=0)
+    signal = np.expand_dims(signal, 0)
+    noise = np.random.uniform(-1.0, 1.0, size=[1,32768]) # need to change if rescale to [0, 1]
     learning_rate = 0.0002
     save_frequency = 2
-    #sess =tf.Session()
-    #print(noise.shape, noise)
-    input_ = tf.placeholder('float', [1, 32768])
-    output_ = tf.placeholder('float', [1, 32768])
+
+    noise_in = tf.placeholder('float', [1, 32768])
+    signal_out = tf.placeholder('float', [1, 32768])
     ae = AEGenerator()
-    G, z  = ae(input_, is_ref=True, spk=None,
-                               do_prelu=False)
-    loss = tf.reduce_mean(tf.abs(tf.subtract(G,
-                               output_)))
+    G, z  = ae(noise_in, is_ref=True, spk=None, do_prelu=False)
+    loss = tf.reduce_sum(tf.abs(tf.subtract(tf.squeeze(G,-1),
+                               signal_out)))
     optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(loss)
     init = tf.global_variables_initializer()
     sess = tf.Session()
     sess.run(init)
-    noise = tf.reshape(noise,[1,-1])
-    noise = sess.run(noise)
-    signal = tf.reshape(signal,[1,-1])
-    signal = sess.run(signal)
-    print(signal)
-    print(noise)
+
     for iteration in range(epoch):
-        _, curr_loss = sess.run([optimizer, loss],\
-                       feed_dict={input_: noise, \
-                       output_: signal})
+        _, curr_loss = sess.run([optimizer, loss], 
+                    feed_dict={noise_in: noise, signal_out: signal})
         if iteration % save_frequency == 0:
             print('Epoch', iteration, '/', epoch, 'loss:',curr_loss)
