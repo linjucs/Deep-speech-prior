@@ -4,7 +4,9 @@ from tensorflow.contrib.layers import batch_norm, fully_connected, flatten
 from tensorflow.contrib.layers import xavier_initializer
 import numpy as np
 import scipy.io.wavfile as wavfile
-
+import os
+import scipy.signal as signal
+from matplotlib import pyplot as plt
 
 def leakyrelu(x, alpha=0.3, name='lrelu'):
     return tf.maximum(x, alpha * x, name=name)
@@ -243,13 +245,16 @@ class AEGenerator(object):
 
 if __name__=='__main__':
     wav_path = 'test.wav'
-    epoch = 60
+    save_path = 'output'
+    epoch = 1000
     audio = np.squeeze(read_audio(wav_path)) # need to rescale, [-1, 1] or [0, 1] ???
+ #   print(np.min(audio, axis=0))
     signal = audio / np.max(np.abs(audio), axis=0)
+    max_ = np.max(np.abs(audio), axis=0)
     signal = np.expand_dims(signal, 0)
     noise = np.random.uniform(-1.0, 1.0, size=[1,32768]) # need to change if rescale to [0, 1]
     learning_rate = 0.0002
-    save_frequency = 2
+    save_frequency = 10
 
     noise_in = tf.placeholder('float', [1, 32768])
     signal_out = tf.placeholder('float', [1, 32768])
@@ -263,7 +268,15 @@ if __name__=='__main__':
     sess.run(init)
 
     for iteration in range(epoch):
-        _, curr_loss = sess.run([optimizer, loss], 
+        _, curr_loss, pre = sess.run([optimizer, loss, G], 
                     feed_dict={noise_in: noise, signal_out: signal})
         if iteration % save_frequency == 0:
             print('Epoch', iteration, '/', epoch, 'loss:',curr_loss)
+     #       pre = (pre[0]*max_)
+            wavfile.write(os.path.join(save_path,
+                                       'pre_{}.'
+                                        'wav'.format(iteration)),
+                                        int(16e3),
+                                        pre[0])
+            plt.specgram(pre[0].flatten(), cmap=None, Fs=16000)
+            plt.savefig(os.path.join(save_path, 'pre_{}.''jpg'.format(iteration)))
